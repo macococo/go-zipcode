@@ -4,10 +4,12 @@ import (
 	"github.com/bmizerany/pat"
 	"github.com/macococo/go-webbase/conf"
 	"github.com/macococo/go-zipcode/controllers"
+	"github.com/macococo/go-zipcode/tasks"
 	"github.com/yvasiyarov/go-metrics"
 	"github.com/yvasiyarov/gorelic"
 	"log"
 	"net/http"
+	"os"
 	"runtime"
 	"strconv"
 )
@@ -53,6 +55,10 @@ func main() {
 	log.Println("NumCPU:", runtime.NumCPU())
 	log.Println("GOMAXPROCS:", runtime.GOMAXPROCS(runtime.NumCPU()))
 
-	initGorelic()
-	initRouter()
+	if len(os.Args) >= 2 && os.Args[1] == "ImportAll" {
+		tasks.ImportAll()
+	} else {
+		initGorelic()
+		initRouter()
+	}
 }
