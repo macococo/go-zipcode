@@ -1,0 +1,9 @@
+{
+  "Port": 8080,
+  "Runmode": "prod",
+  "Datasource":  "gamereviews:gamereviews@tcp(127.0.0.1:3306)/gamereviews?charset=utf8&parseTime=true",
+  "MaxIdleConns": 100,
+  "MaxOpenConns": 100,
+  "MemcachedServer": "127.0.0.1:11211",
+  "NewrelicLicense": ""
+}
