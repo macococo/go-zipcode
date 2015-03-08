@@ -1,19 +1,15 @@
-package tasks
+package models
 
 import (
-	"archive/zip"
 	"bufio"
-	"code.google.com/p/go.text/encoding/japanese"
-	"code.google.com/p/go.text/transform"
 	"encoding/csv"
-	"fmt"
+	io_ "github.com/macococo/go-webbase/io"
 	"github.com/macococo/go-webbase/utils"
 	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 )
 
@@ -23,16 +19,29 @@ const (
 	CSV_COLUMNS = 15
 )
 
-func ImportAll() {
+var (
+	cache map[string]*Address
+)
+
+type Address struct {
+	Zipcode  string `json:"zipcode"`
+	Address1 string `json:"address1"`
+	Address2 string `json:"address2"`
+	Address3 string `json:"address3"`
+}
+
+func ReloadAddressCache(f func()) {
+	newCache := make(map[string]*Address)
+
 	err := os.Mkdir(TEMP_DIR, 0777)
 	utils.HandleError(err)
 
 	dest := downloadZip("ken_all")
-	files := unzip(dest)
+	files := io_.Unzip(dest, TEMP_DIR)
+
+	log.Println("reloading address...")
 
 	for _, path := range files {
-		log.Println(path)
-
 		file, err := os.Open(path)
 		utils.HandleError(err)
 
@@ -47,18 +56,41 @@ func ImportAll() {
 				utils.HandleError(err)
 			}
 
-			value, err := sjisToUtf8(string(line))
+			value, err := utils.ShiftJISToUtf8(string(line))
 			record := csvToStrings(value)
 
 			if len(record) != CSV_COLUMNS {
 				continue
 			}
 
-			for _, val := range record {
-				fmt.Println(val)
-			}
+			address := NewAddressByRecord(record)
+			newCache[address.Zipcode] = address
 		}
 	}
+
+	log.Println("reloaded address.")
+
+	cache = newCache
+
+	f()
+}
+
+func NewAddressByRecord(record []string) *Address {
+	address := Address{}
+
+	address.Zipcode = record[2]
+	address.Address1 = record[6]
+	address.Address2 = record[7]
+	address.Address3 = record[8]
+
+	return &address
+}
+
+func GetAddress(zipCode string) *Address {
+	if cache == nil {
+		return nil
+	}
+	return cache[zipCode]
 }
 
 func downloadZip(name string) string {
@@ -80,47 +112,6 @@ func downloadZip(name string) string {
 	file.Write(body)
 
 	return dest
-}
-
-func unzip(src string) []string {
-	files := []string{}
-
-	r, err := zip.OpenReader(src)
-	utils.HandleError(err)
-
-	defer r.Close()
-
-	for _, f := range r.File {
-		rc, err := f.Open()
-		utils.HandleError(err)
-
-		defer rc.Close()
-
-		path := filepath.Join(TEMP_DIR, f.Name)
-		if f.FileInfo().IsDir() {
-			os.MkdirAll(path, f.Mode())
-		} else {
-			f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
-			utils.HandleError(err)
-
-			defer f.Close()
-
-			_, err = io.Copy(f, rc)
-			utils.HandleError(err)
-
-			files = append(files, path)
-		}
-	}
-
-	return files
-}
-
-func sjisToUtf8(str string) (string, error) {
-	ret, err := ioutil.ReadAll(transform.NewReader(strings.NewReader(str), japanese.ShiftJIS.NewDecoder()))
-	if err != nil {
-		return "", err
-	}
-	return string(ret), err
 }
 
 func csvToStrings(str string) []string {
